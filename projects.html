@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Our Projects | AI Malaysia Community</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: radial-gradient(circle at top right, #0f2a52 0%, #020617 45%, #01040b 100%); min-height: 100vh; }
+    html { scroll-behavior: smooth; }
+
+    .glass { background: rgba(255,255,255,0.04); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.08); }
+    .glass-hover { transition: all 0.35s ease; }
+    .glass-hover:hover { background: rgba(255,255,255,0.07); border-color: rgba(251,191,36,0.3); transform: translateY(-4px); box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 30px rgba(251,191,36,0.08); }
+
+    .gradient-text { background: linear-gradient(90deg, #fbbf24, #fde68a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .gold-line { background: linear-gradient(90deg, #fbbf24, transparent); height: 2px; }
+
+    /* Filter tabs */
+    .filter-btn { transition: all 0.25s ease; position: relative; }
+    .filter-btn::after { content: ''; position: absolute; bottom: -2px; left: 50%; transform: translateX(-50%) scaleX(0); width: 100%; height: 2px; background: #fbbf24; border-radius: 2px; transition: transform 0.25s ease; }
+    .filter-btn.active::after, .filter-btn:hover::after { transform: translateX(-50%) scaleX(1); }
+    .filter-btn.active { color: #fbbf24; }
+
+    /* Project cards */
+    .project-card { cursor: pointer; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    .project-card:hover { transform: translateY(-8px) scale(1.01); box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 40px rgba(251,191,36,0.1); }
+    .project-card .img-wrap { overflow: hidden; }
+    .project-card .img-wrap img { transition: transform 0.6s ease; }
+    .project-card:hover .img-wrap img { transform: scale(1.08); }
+    .project-card .overlay { background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 60%); opacity: 0; transition: opacity 0.35s ease; }
+    .project-card:hover .overlay { opacity: 1; }
+
+    /* Featured card */
+    .card-featured { grid-column: span 2; }
+
+    /* Modal */
+    #project-modal { display: none; position: fixed; inset: 0; z-index: 1000; }
+    #project-modal.open { display: flex; }
+    .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); }
+    .modal-panel { position: relative; z-index: 10; margin: auto; width: 92%; max-width: 1100px; max-height: 92vh; overflow-y: auto; border-radius: 2rem; background: linear-gradient(145deg, #0d1f3c, #060d1a); border: 1px solid rgba(255,255,255,0.1); animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1) forwards; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(40px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+    /* Scrollbar */
+    .modal-panel::-webkit-scrollbar { width: 6px; }
+    .modal-panel::-webkit-scrollbar-track { background: transparent; }
+    .modal-panel::-webkit-scrollbar-thumb { background: rgba(251,191,36,0.3); border-radius: 3px; }
+
+    /* Stats counter */
+    .stat-card { background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.15); border-radius: 1rem; padding: 1.5rem; text-align: center; }
+
+    /* Tag */
+    .tag { display: inline-block; padding: 4px 12px; border-radius: 100px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+    .tag-yellow { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.2); }
+    .tag-blue { background: rgba(96,165,250,0.1); color: #93c5fd; border: 1px solid rgba(96,165,250,0.2); }
+    .tag-green { background: rgba(52,211,153,0.1); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.2); }
+    .tag-purple { background: rgba(167,139,250,0.1); color: #c4b5fd; border: 1px solid rgba(167,139,250,0.2); }
+    .tag-pink { background: rgba(251,113,133,0.1); color: #fda4af; border: 1px solid rgba(251,113,133,0.2); }
+
+    /* Tech badge */
+    .tech-badge { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 6px 14px; font-size: 0.8rem; color: #cbd5e1; }
+
+    /* Timeline dot */
+    .tl-dot { width: 10px; height: 10px; border-radius: 50%; background: #fbbf24; flex-shrink: 0; margin-top: 5px; box-shadow: 0 0 10px rgba(251,191,36,0.5); }
+
+    /* Page load animation */
+    .fade-in { animation: fadeIn 0.6s ease forwards; }
+    .fade-in-delay { animation: fadeIn 0.6s ease 0.15s forwards; opacity: 0; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Floating orbs */
+    .orb { position: fixed; border-radius: 50%; filter: blur(80px); pointer-events: none; z-index: 0; }
+
+    /* Grid masonry-like */
+    .projects-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+    @media (max-width: 1024px) { .projects-grid { grid-template-columns: repeat(2, 1fr); } .card-featured { grid-column: span 2; } }
+    @media (max-width: 640px) { .projects-grid { grid-template-columns: 1fr; } .card-featured { grid-column: span 1; } }
+
+    .section-divider { border-top: 1px solid rgba(255,255,255,0.08); }
+
+    /* Modal hero shimmer */
+    .shimmer { background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0) 100%); background-size: 200% 100%; animation: shimmer 2.5s infinite; }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+    /* Result bar */
+    .result-bar-bg { background: rgba(255,255,255,0.06); border-radius: 100px; height: 6px; overflow: hidden; }
+    .result-bar { height: 100%; border-radius: 100px; background: linear-gradient(90deg, #fbbf24, #fde68a); transition: width 1.2s cubic-bezier(0.4,0,0.2,1); }
+  </style>
+</head>
+<body class="text-white">
+
+<!-- Floating Orbs -->
+<div class="orb w-96 h-96 bg-yellow-500/10 top-20 -right-32"></div>
+<div class="orb w-80 h-80 bg-blue-600/10 bottom-40 -left-20"></div>
+
+<!-- NAVIGATION -->
+<nav class="sticky top-0 z-50 backdrop-blur-xl bg-black/30 border-b border-white/10">
+  <div class="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
+    <a href="claude_malaysia_community_dashboard.html">
+      <h1 class="text-2xl font-extrabold tracking-tight"><span class="gradient-text">AI</span> Malaysia Community</h1>
+      <p class="text-xs tracking-[0.3em] text-neutral-400">AI INNOVATION. TOGETHER.</p>
+    </a>
+    <div class="hidden md:flex gap-8 text-sm text-neutral-300">
+      <a href="claude_malaysia_community_dashboard.html#services" class="hover:text-yellow-300">Services</a>
+      <a href="projects.html" class="text-yellow-300 font-semibold">Portfolio</a>
+      <a href="claude_malaysia_community_dashboard.html#community" class="hover:text-yellow-300">Community</a>
+      <a href="claude_malaysia_community_dashboard.html#testimonials" class="hover:text-yellow-300">Testimonials</a>
+      <a href="claude_malaysia_community_dashboard.html#contact" class="hover:text-yellow-300">Contact</a>
+    </div>
+    <a href="claude_malaysia_community_dashboard.html#contact" class="px-5 py-3 rounded-full bg-yellow-400 text-black font-semibold">Contact Us</a>
+  </div>
+</nav>
+
+<!-- PAGE HERO -->
+<section class="relative max-w-7xl mx-auto px-6 pt-20 pb-14 fade-in">
+  <div class="text-center">
+    <p class="text-yellow-300 uppercase tracking-[0.35em] text-sm mb-4">Our Portfolio</p>
+    <h2 class="text-5xl md:text-7xl font-extrabold leading-tight mb-6">Work That <span class="gradient-text">Moves</span><br/>the Needle</h2>
+    <p class="text-lg text-neutral-400 max-w-2xl mx-auto mb-8">Real solutions. Real impact. Explore how we've helped Malaysian organizations unlock the power of AI — from automation to intelligence infrastructure.</p>
+    <div class="gold-line max-w-xs mx-auto"></div>
+  </div>
+
+  <!-- Stats bar -->
+  <div class="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 fade-in-delay">
+    <div class="stat-card"><p class="text-3xl font-extrabold text-yellow-300">50+</p><p class="text-sm text-neutral-400 mt-1">Projects Delivered</p></div>
+    <div class="stat-card"><p class="text-3xl font-extrabold text-yellow-300">8</p><p class="text-sm text-neutral-400 mt-1">Industries Served</p></div>
+    <div class="stat-card"><p class="text-3xl font-extrabold text-yellow-300">95%</p><p class="text-sm text-neutral-400 mt-1">Client Satisfaction</p></div>
+    <div class="stat-card"><p class="text-3xl font-extrabold text-yellow-300">3.2×</p><p class="text-sm text-neutral-400 mt-1">Avg. ROI Delivered</p></div>
+  </div>
+</section>
+
+<!-- FILTER TABS -->
+<section class="max-w-7xl mx-auto px-6 pb-6">
+  <div class="flex flex-wrap gap-2 items-center">
+    <button class="filter-btn active px-5 py-2 rounded-full text-sm font-semibold text-neutral-300 hover:text-yellow-300" data-filter="all">All Projects</button>
+    <button class="filter-btn px-5 py-2 rounded-full text-sm font-semibold text-neutral-300 hover:text-yellow-300" data-filter="automation">AI Automation</button>
+    <button class="filter-btn px-5 py-2 rounded-full text-sm font-semibold text-neutral-300 hover:text-yellow-300" data-filter="chatbot">Chatbot & NLP</button>
+    <button class="filter-btn px-5 py-2 rounded-full text-sm font-semibold text-neutral-300 hover:text-yellow-300" data-filter="analytics">Predictive Analytics</button>
+    <button class="filter-btn px-5 py-2 rounded-full text-sm font-semibold text-neutral-300 hover:text-yellow-300" data-filter="integration">Enterprise Integration</button>
+    <button class="filter-btn px-5 py-2 rounded-full text-sm font-semibold text-neutral-300 hover:text-yellow-300" data-filter="vision">Computer Vision</button>
+  </div>
+  <div class="gold-line mt-3 w-full opacity-40"></div>
+</section>
+
+<!-- PROJECTS GRID -->
+<section class="max-w-7xl mx-auto px-6 pb-28">
+  <div class="projects-grid" id="projects-grid">
+
+    <!-- Card 1 — Featured -->
+    <div class="project-card glass rounded-3xl overflow-hidden card-featured" data-category="automation" data-id="0">
+      <div class="img-wrap relative h-72">
+        <img src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1400&q=80" class="w-full h-full object-cover" alt="">
+        <div class="overlay absolute inset-0"></div>
+        <div class="absolute top-4 left-4"><span class="tag tag-yellow">AI Automation</span></div>
+        <div class="absolute bottom-4 left-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+          <span class="text-yellow-300 text-sm font-semibold">→ View Case Study</span>
+        </div>
+      </div>
+      <div class="p-7">
+        <h3 class="text-2xl font-bold mb-2">Intelligent Document Processing</h3>
+        <p class="text-neutral-400 mb-5 leading-relaxed">Automated multi-format document extraction and routing pipeline for a leading finance services group — eliminating manual bottlenecks across 6 departments.</p>
+        <div class="flex items-center justify-between">
+          <div class="flex gap-2 flex-wrap">
+            <span class="tech-badge">Python</span><span class="tech-badge">GPT-4o</span><span class="tech-badge">Azure</span>
+          </div>
+          <div class="text-right"><p class="text-2xl font-extrabold text-yellow-300">70%</p><p class="text-xs text-neutral-500">Time Saved</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2 -->
+    <div class="project-card glass rounded-3xl overflow-hidden" data-category="chatbot" data-id="1">
+      <div class="img-wrap relative h-48">
+        <img src="https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=800&q=80" class="w-full h-full object-cover" alt="">
+        <div class="overlay absolute inset-0"></div>
+        <div class="absolute top-4 left-4"><span class="tag tag-blue">Chatbot & NLP</span></div>
+      </div>
+      <div class="p-6">
+        <h3 class="text-xl font-bold mb-2">Customer Support AI Assistant</h3>
+        <p class="text-neutral-400 text-sm mb-4">24/7 intelligent support layer integrated with CRM for a regional e-commerce platform.</p>
+        <div class="flex items-center justify-between">
+          <div class="flex gap-2 flex-wrap"><span class="tech-badge">Claude 3.5</span><span class="tech-badge">Zendesk</span></div>
+          <div class="text-right"><p class="text-xl font-extrabold text-yellow-300">40%</p><p class="text-xs text-neutral-500">Cost Cut</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3 -->
+    <div class="project-card glass rounded-3xl overflow-hidden" data-category="analytics" data-id="2">
+      <div class="img-wrap relative h-48">
+        <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80" class="w-full h-full object-cover" alt="">
+        <div class="overlay absolute inset-0"></div>
+        <div class="absolute top-4 left-4"><span class="tag tag-green">Predictive Analytics</span></div>
+      </div>
+      <div class="p-6">
+        <h3 class="text-xl font-bold mb-2">Sales Forecasting Dashboard</h3>
+        <p class="text-neutral-400 text-sm mb-4">Real-time AI forecasting engine that replaced spreadsheet-based planning for a consumer goods distributor.</p>
+        <div class="flex items-center justify-between">
+          <div class="flex gap-2 flex-wrap"><span class="tech-badge">Prophet</span><span class="tech-badge">Power BI</span></div>
+          <div class="text-right"><p class="text-xl font-extrabold text-yellow-300">25%</p><p class="text-xs text-neutral-500">Accuracy Gain</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 4 -->
+    <div class="project-card glass rounded-3xl overflow-hidden" data-category="integration" data-id="3">
+      <div class="img-wrap relative h-48">
+        <img src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=800&q=80" class="w-full h-full object-cover" alt="">
+        <div class="overlay absolute inset-0"></div>
+        <div class="absolute top-4 left-4"><span class="tag tag-purple">Enterprise Integration</span></div>
+      </div>
+      <div class="p-6">
+        <h3 class="text-xl font-bold mb-2">Enterprise Knowledge System</h3>
+        <p class="text-neutral-400 text-sm mb-4">Private RAG-based knowledge layer connecting 10+ internal systems for faster institutional decisions.</p>
+        <div class="flex items-center justify-between">
+          <div class="flex gap-2 flex-wrap"><span class="tech-badge">RAG</span><span class="tech-badge">Pinecone</span></div>
+          <div class="text-right"><p class="text-xl font-extrabold text-yellow-300">60%</p><p class="text-xs text-neutral-500">Productivity</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 5 -->
+    <div class="project-card glass rounded-3xl overflow-hidden" data-category="vision" data-id="4">
+      <div class="img-wrap relative h-48">
+        <img src="https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=800&q=80" class="w-full h-full object-cover" alt="">
+        <div class="overlay absolute inset-0"></div>
+        <div class="absolute top-4 left-4"><span class="tag tag-pink">Computer Vision</span></div>
+      </div>
+      <div class="p-6">
+        <h3 class="text-xl font-bold mb-2">Smart Retail Shelf Analytics</h3>
+        <p class="text-neutral-400 text-sm mb-4">Vision AI that monitors shelf compliance, stock levels, and planogram adherence in real time across retail chains.</p>
+        <div class="flex items-center justify-between">
+          <div class="flex gap-2 flex-wrap"><span class="tech-badge">YOLOv8</span><span class="tech-badge">OpenCV</span></div>
+          <div class="text-right"><p class="text-xl font-extrabold text-yellow-300">3×</p><p class="text-xs text-neutral-500">Faster Audits</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 6 -->
+    <div class="project-card glass rounded-3xl overflow-hidden" data-category="automation" data-id="5">
+      <div class="img-wrap relative h-48">
+        <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=800&q=80" class="w-full h-full object-cover" alt="">
+        <div class="overlay absolute inset-0"></div>
+        <div class="absolute top-4 left-4"><span class="tag tag-yellow">AI Automation</span></div>
+      </div>
+      <div class="p-6">
+        <h3 class="text-xl font-bold mb-2">AI-Powered HR Recruitment</h3>
+        <p class="text-neutral-400 text-sm mb-4">End-to-end AI screening, ranking, and interview scheduling pipeline reducing time-to-hire by over half.</p>
+        <div class="flex items-center justify-between">
+          <div class="flex gap-2 flex-wrap"><span class="tech-badge">Claude</span><span class="tech-badge">n8n</span></div>
+          <div class="text-right"><p class="text-xl font-extrabold text-yellow-300">55%</p><p class="text-xs text-neutral-500">Faster Hiring</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 7 — Featured -->
+    <div class="project-card glass rounded-3xl overflow-hidden card-featured" data-category="analytics" data-id="6">
+      <div class="img-wrap relative h-64">
+        <img src="https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1400&q=80" class="w-full h-full object-cover" alt="">
+        <div class="overlay absolute inset-0"></div>
+        <div class="absolute top-4 left-4"><span class="tag tag-green">Predictive Analytics</span></div>
+      </div>
+      <div class="p-7">
+        <h3 class="text-2xl font-bold mb-2">Supply Chain Risk Intelligence</h3>
+        <p class="text-neutral-400 mb-5 leading-relaxed">Predictive disruption model that monitors 200+ supplier signals to flag supply chain risks 6–8 weeks in advance for a Malaysian manufacturer.</p>
+        <div class="flex items-center justify-between">
+          <div class="flex gap-2 flex-wrap">
+            <span class="tech-badge">Scikit-learn</span><span class="tech-badge">Kafka</span><span class="tech-badge">Tableau</span>
+          </div>
+          <div class="text-right"><p class="text-2xl font-extrabold text-yellow-300">RM 2.4M</p><p class="text-xs text-neutral-500">Losses Prevented</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 8 -->
+    <div class="project-card glass rounded-3xl overflow-hidden" data-category="chatbot" data-id="7">
+      <div class="img-wrap relative h-48">
+        <img src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=800&q=80" class="w-full h-full object-cover" alt="">
+        <div class="overlay absolute inset-0"></div>
+        <div class="absolute top-4 left-4"><span class="tag tag-blue">Chatbot & NLP</span></div>
+      </div>
+      <div class="p-6">
+        <h3 class="text-xl font-bold mb-2">Medical Triage Assistant</h3>
+        <p class="text-neutral-400 text-sm mb-4">Multilingual patient intake & triage AI deployed across a network of private clinics in the Klang Valley.</p>
+        <div class="flex items-center justify-between">
+          <div class="flex gap-2 flex-wrap"><span class="tech-badge">Claude</span><span class="tech-badge">BM / EN</span></div>
+          <div class="text-right"><p class="text-xl font-extrabold text-yellow-300">4.8★</p><p class="text-xs text-neutral-500">Patient Rating</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 9 -->
+    <div class="project-card glass rounded-3xl overflow-hidden" data-category="integration" data-id="8">
+      <div class="img-wrap relative h-48">
+        <img src="https://images.unsplash.com/photo-1518186285589-2f7649de83e0?auto=format&fit=crop&w=800&q=80" class="w-full h-full object-cover" alt="">
+        <div class="overlay absolute inset-0"></div>
+        <div class="absolute top-4 left-4"><span class="tag tag-purple">Enterprise Integration</span></div>
+      </div>
+      <div class="p-6">
+        <h3 class="text-xl font-bold mb-2">ERP AI Co-Pilot</h3>
+        <p class="text-neutral-400 text-sm mb-4">Natural language interface layered over SAP ERP — query reports, trigger workflows, and get insights in plain language.</p>
+        <div class="flex items-center justify-between">
+          <div class="flex gap-2 flex-wrap"><span class="tech-badge">SAP</span><span class="tech-badge">LangChain</span></div>
+          <div class="text-right"><p class="text-xl font-extrabold text-yellow-300">8 hrs</p><p class="text-xs text-neutral-500">Saved/Week</p></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Empty state -->
+  <div id="empty-state" class="hidden text-center py-24 text-neutral-500">
+    <p class="text-5xl mb-4">🔍</p>
+    <p class="text-xl font-semibold">No projects in this category yet.</p>
+    <p class="text-sm mt-2">Check back soon or explore another filter.</p>
+  </div>
+</section>
+
+<!-- CTA BAND -->
+<section class="section-divider max-w-7xl mx-auto px-6 pb-24">
+  <div class="rounded-[2rem] bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-300 text-black p-12 flex flex-col lg:flex-row justify-between items-center gap-8">
+    <div>
+      <h3 class="text-3xl font-extrabold mb-2">Have a challenge we should solve?</h3>
+      <p class="text-base">Let's talk about how AI can transform your business operations.</p>
+    </div>
+    <a href="claude_malaysia_community_dashboard.html#contact" class="px-8 py-4 rounded-2xl bg-black text-white font-bold whitespace-nowrap">Start a Conversation →</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="max-w-7xl mx-auto px-6 py-14 border-t border-white/10 text-neutral-400">
+  <div class="grid md:grid-cols-4 gap-10">
+    <div>
+      <h4 class="text-2xl font-bold text-white mb-3"><span class="gradient-text">AI</span> Malaysia Community</h4>
+      <p>Empowering Malaysia through AI innovation, consulting, and collaboration.</p>
+    </div>
+    <div><h5 class="font-bold text-white mb-3">Quick Links</h5><ul class="space-y-2"><li><a href="claude_malaysia_community_dashboard.html" class="hover:text-yellow-300">Home</a></li><li><a href="claude_malaysia_community_dashboard.html#services" class="hover:text-yellow-300">Services</a></li><li><a href="projects.html" class="hover:text-yellow-300">Portfolio</a></li><li><a href="claude_malaysia_community_dashboard.html#community" class="hover:text-yellow-300">Community</a></li></ul></div>
+    <div><h5 class="font-bold text-white mb-3">Resources</h5><ul class="space-y-2"><li>AI Tools</li><li>Events</li><li>Guides</li><li>Newsletters</li></ul></div>
+    <div><h5 class="font-bold text-white mb-3">Contact</h5><ul class="space-y-2"><li>hello@aimalaysiacommunity.my</li><li>+60 12-345 6789</li><li>Kuala Lumpur, Malaysia</li></ul></div>
+  </div>
+  <div class="mt-12 text-center text-sm text-neutral-600">© 2026 AI Malaysia Community. All rights reserved.</div>
+</footer>
+
+<!-- ===================== PROJECT MODAL ===================== -->
+<div id="project-modal" role="dialog" aria-modal="true">
+  <div class="modal-backdrop" id="modal-backdrop"></div>
+  <div class="modal-panel" id="modal-panel">
+
+    <!-- Close -->
+    <button id="modal-close" class="absolute top-5 right-5 z-20 w-10 h-10 rounded-full glass flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-all">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+
+    <!-- Modal content injected by JS -->
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<!-- ===================== JS ===================== -->
+<script>
+const PROJECTS = [
+  {
+    id: 0,
+    category: "automation",
+    categoryLabel: "AI Automation",
+    tagClass: "tag-yellow",
+    title: "Intelligent Document Processing",
+    subtitle: "Finance Services Group — Kuala Lumpur",
+    year: "2025",
+    img: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1400&q=80",
+    summary: "A leading Malaysian finance group was processing over 3,000 documents daily — manually. We built an end-to-end AI pipeline that extracts, classifies, and routes documents in real time, transforming their operational backbone.",
+    challenge: "The client's back-office team spent 6+ hours daily manually sorting invoices, contracts, and KYC documents across six departments. Error rates were high, audit trails were inconsistent, and scaling was impossible.",
+    solution: "We designed a multi-modal extraction engine using GPT-4o Vision + custom fine-tuned classifiers. Documents from email, portal uploads, and scanned PDFs are ingested, parsed, enriched with metadata, and auto-routed into the correct ERP workflow — with a confidence dashboard for human review.",
+    results: [
+      { label: "Processing Time Saved", value: "70%", bar: 70 },
+      { label: "Manual Errors Eliminated", value: "92%", bar: 92 },
+      { label: "Staff Hours Freed Weekly", value: "240 hrs", bar: 80 },
+      { label: "ROI Within 6 Months", value: "4.1×", bar: 85 }
+    ],
+    timeline: [
+      { phase: "Discovery & Audit", duration: "2 weeks" },
+      { phase: "Model Training & Pipeline Build", duration: "5 weeks" },
+      { phase: "Integration & UAT", duration: "3 weeks" },
+      { phase: "Go-Live & Hypercare", duration: "2 weeks" }
+    ],
+    tech: ["Python", "GPT-4o Vision", "Azure Document Intelligence", "FastAPI", "PostgreSQL", "Power Automate"],
+    testimonial: { quote: "This has fundamentally changed how our back-office operates. We went from firefighting documents to having full visibility and control.", author: "Head of Operations", company: "Finance Services Group, KL" }
+  },
+  {
+    id: 1,
+    category: "chatbot",
+    categoryLabel: "Chatbot & NLP",
+    tagClass: "tag-blue",
+    title: "Customer Support AI Assistant",
+    subtitle: "Regional E-Commerce Platform — Malaysia",
+    year: "2024",
+    img: "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1400&q=80",
+    summary: "A fast-growing Malaysian e-commerce platform was overwhelmed by support tickets. We deployed a multilingual AI assistant that handles 80% of queries autonomously — in English, Bahasa Malaysia, and Mandarin.",
+    challenge: "The platform's 12-person support team was drowning in 4,000+ daily tickets, with first response times exceeding 6 hours during peak periods. Customer satisfaction was declining and the cost-per-ticket was unsustainable.",
+    solution: "We built a context-aware support assistant using Claude 3.5 Sonnet, integrated directly into Zendesk and the platform's order management system. The AI resolves order queries, processes returns, and escalates complex issues with full context — in three languages.",
+    results: [
+      { label: "Tickets Resolved Autonomously", value: "81%", bar: 81 },
+      { label: "Support Cost Reduction", value: "40%", bar: 40 },
+      { label: "Response Time (avg)", value: "< 30s", bar: 95 },
+      { label: "CSAT Score Improvement", value: "+22pts", bar: 70 }
+    ],
+    timeline: [
+      { phase: "Knowledge Base Structuring", duration: "1 week" },
+      { phase: "Chatbot Build & Training", duration: "4 weeks" },
+      { phase: "CRM Integration", duration: "2 weeks" },
+      { phase: "A/B Testing & Tuning", duration: "2 weeks" }
+    ],
+    tech: ["Claude 3.5 Sonnet", "Zendesk API", "Node.js", "Redis", "BM/EN/ZH NLP", "Webhook Automation"],
+    testimonial: { quote: "Our team now focuses on high-value interactions. The AI handles the rest — better and faster than we ever could at scale.", author: "Head of Customer Experience", company: "E-Commerce Platform, Malaysia" }
+  },
+  {
+    id: 2,
+    category: "analytics",
+    categoryLabel: "Predictive Analytics",
+    tagClass: "tag-green",
+    title: "Sales Forecasting Dashboard",
+    subtitle: "Consumer Goods Distributor — Selangor",
+    year: "2025",
+    img: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1400&q=80",
+    summary: "Replaced a company's entire Excel-based planning process with an AI forecasting engine that delivers 30-day rolling predictions with full scenario modelling — accessible in a live Power BI dashboard.",
+    challenge: "Monthly planning cycles took 5 days, relied on gut-feel adjustments, and were routinely off by 18–25%. Overstocking and stockouts were costing the business millions annually.",
+    solution: "We built a Prophet + XGBoost ensemble model trained on 3 years of sales data, enriched with weather, holiday, and promotional signals. The result is a live forecasting dashboard with confidence intervals, drill-down by SKU/region, and what-if scenario controls.",
+    results: [
+      { label: "Forecast Accuracy Improvement", value: "25%", bar: 65 },
+      { label: "Planning Cycle Time Reduction", value: "80%", bar: 80 },
+      { label: "Stockout Incidents (YoY)", value: "−43%", bar: 57 },
+      { label: "Inventory Carrying Cost Saved", value: "RM 1.1M", bar: 75 }
+    ],
+    timeline: [
+      { phase: "Data Audit & Feature Engineering", duration: "3 weeks" },
+      { phase: "Model Development & Backtesting", duration: "4 weeks" },
+      { phase: "Dashboard Build", duration: "2 weeks" },
+      { phase: "Training & Handoff", duration: "1 week" }
+    ],
+    tech: ["Prophet", "XGBoost", "Python", "Power BI", "Azure ML", "SQL Server"],
+    testimonial: { quote: "We went from guessing to knowing. The dashboard is now the first thing my team opens every morning.", author: "VP of Commercial", company: "Consumer Goods Distributor, Selangor" }
+  },
+  {
+    id: 3,
+    category: "integration",
+    categoryLabel: "Enterprise Integration",
+    tagClass: "tag-purple",
+    title: "Enterprise Knowledge System",
+    subtitle: "Multinational Corporation — KLCC",
+    year: "2025",
+    img: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1400&q=80",
+    summary: "Built a private, secure RAG-based AI knowledge platform that connects 10+ internal systems — SharePoint, Confluence, ERP, HR portals — letting employees query institutional knowledge in seconds.",
+    challenge: "A 2,000-person organization had knowledge siloed across 10+ disconnected systems. Onboarding new staff took weeks; finding critical policy or technical documents could take hours. Important knowledge was walking out the door every time an employee left.",
+    solution: "We architected a private RAG (Retrieval Augmented Generation) system with Pinecone as the vector store and Claude as the reasoning layer. The system ingests, chunks, and indexes documents in real time. Employees interact through a Slack-native interface with source citations on every answer.",
+    results: [
+      { label: "Query Resolution Time", value: "−87%", bar: 87 },
+      { label: "Productivity Increase", value: "60%", bar: 60 },
+      { label: "Onboarding Time Reduction", value: "50%", bar: 50 },
+      { label: "Employee Satisfaction (NPS)", value: "+38pts", bar: 76 }
+    ],
+    timeline: [
+      { phase: "System Architecture & Security Review", duration: "2 weeks" },
+      { phase: "Ingestion Pipeline Build", duration: "3 weeks" },
+      { phase: "RAG Tuning & Slack Integration", duration: "3 weeks" },
+      { phase: "Rollout & User Training", duration: "2 weeks" }
+    ],
+    tech: ["Claude 3.5", "Pinecone", "LangChain", "SharePoint API", "Slack API", "FastAPI", "Docker"],
+    testimonial: { quote: "It's like having a genius employee who has read every document the company has ever created — and can answer in seconds.", author: "Chief Digital Officer", company: "MNC, Kuala Lumpur" }
+  },
+  {
+    id: 4,
+    category: "vision",
+    categoryLabel: "Computer Vision",
+    tagClass: "tag-pink",
+    title: "Smart Retail Shelf Analytics",
+    subtitle: "National Retail Chain — Malaysia",
+    year: "2024",
+    img: "https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=1400&q=80",
+    summary: "Deployed YOLOv8-based shelf monitoring across 200 retail outlets — tracking stock levels, planogram compliance, and competitor product placement in real time via in-store camera feeds.",
+    challenge: "Manual shelf audits were infrequent, inconsistent, and costly. Out-of-stock situations went unnoticed for hours. Planogram violations were only discovered during monthly walkthroughs.",
+    solution: "We deployed lightweight YOLOv8 models on edge devices at each outlet. A central analytics dashboard aggregates shelf health scores, flags anomalies, and triggers automated replenishment alerts. Store managers receive WhatsApp push notifications for critical gaps.",
+    results: [
+      { label: "Audit Speed Improvement", value: "3×", bar: 80 },
+      { label: "Out-of-Stock Detection Time", value: "< 5 min", bar: 90 },
+      { label: "Planogram Compliance Increase", value: "+31%", bar: 65 },
+      { label: "Lost Sales Recovery (Monthly)", value: "RM 280K", bar: 70 }
+    ],
+    timeline: [
+      { phase: "Camera Audit & Edge Hardware Spec", duration: "2 weeks" },
+      { phase: "Model Training on Retail Data", duration: "5 weeks" },
+      { phase: "Pilot (10 Stores)", duration: "3 weeks" },
+      { phase: "National Rollout", duration: "6 weeks" }
+    ],
+    tech: ["YOLOv8", "OpenCV", "NVIDIA Jetson", "MQTT", "InfluxDB", "Grafana", "WhatsApp Business API"],
+    testimonial: { quote: "We now have eyes in every store simultaneously. The ROI was clear within the first month.", author: "Head of Retail Operations", company: "National Retail Chain, Malaysia" }
+  },
+  {
+    id: 5,
+    category: "automation",
+    categoryLabel: "AI Automation",
+    tagClass: "tag-yellow",
+    title: "AI-Powered HR Recruitment",
+    subtitle: "Mid-Market Enterprise — Petaling Jaya",
+    year: "2025",
+    img: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=1400&q=80",
+    summary: "Automated the full recruitment funnel — from JD parsing and resume screening to interview scheduling and offer letter generation — cutting time-to-hire by 55% while improving candidate quality.",
+    challenge: "The HR team was manually sifting through 300+ applications per role, spending 60% of their time on administrative tasks rather than strategic hiring decisions.",
+    solution: "We built an n8n-powered workflow automation layer with Claude at its core for resume intelligence. The system scores candidates against role requirements, auto-schedules interviews via calendar API, sends personalised communications, and drafts offer letters — all with HR approval checkpoints.",
+    results: [
+      { label: "Time-to-Hire Reduction", value: "55%", bar: 55 },
+      { label: "Admin Time Saved (HR Team)", value: "60%", bar: 60 },
+      { label: "Candidate Quality Score (avg)", value: "+28%", bar: 68 },
+      { label: "Cost-per-Hire Reduction", value: "35%", bar: 35 }
+    ],
+    timeline: [
+      { phase: "Process Mapping & ATS Integration", duration: "2 weeks" },
+      { phase: "AI Screening Engine Build", duration: "3 weeks" },
+      { phase: "Workflow Automation", duration: "3 weeks" },
+      { phase: "Testing & HR Training", duration: "2 weeks" }
+    ],
+    tech: ["Claude 3.5", "n8n", "Google Calendar API", "ATS Integration", "Slack", "PostgreSQL"],
+    testimonial: { quote: "We now spend our time on people decisions, not paperwork. The AI does the heavy lifting brilliantly.", author: "Head of Talent Acquisition", company: "Mid-Market Enterprise, PJ" }
+  },
+  {
+    id: 6,
+    category: "analytics",
+    categoryLabel: "Predictive Analytics",
+    tagClass: "tag-green",
+    title: "Supply Chain Risk Intelligence",
+    subtitle: "Malaysian Manufacturer — Shah Alam",
+    year: "2025",
+    img: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1400&q=80",
+    summary: "Built a real-time supply chain risk monitoring platform that tracks 200+ supplier signals — financial health, geopolitical events, logistics delays — and alerts operations teams 6–8 weeks before potential disruptions materialise.",
+    challenge: "The client experienced three major supply disruptions in 18 months, each costing RM 800K+ in expedited freight and production stoppages. Risk management was entirely reactive.",
+    solution: "We engineered a continuous signal intelligence platform using Kafka for real-time data ingestion and a gradient-boosted risk model trained on historical disruption patterns. A Tableau dashboard gives the procurement team a live heat map of supplier risk scores with recommended mitigation actions.",
+    results: [
+      { label: "Advance Warning Lead Time", value: "6–8 wks", bar: 85 },
+      { label: "Disruption Losses Prevented", value: "RM 2.4M", bar: 90 },
+      { label: "Supplier Risk Visibility", value: "98%", bar: 98 },
+      { label: "Procurement Team Efficiency", value: "+45%", bar: 45 }
+    ],
+    timeline: [
+      { phase: "Supplier Data Mapping", duration: "3 weeks" },
+      { phase: "Risk Model Development", duration: "6 weeks" },
+      { phase: "Kafka Pipeline & Dashboard", duration: "4 weeks" },
+      { phase: "Pilot & Calibration", duration: "3 weeks" }
+    ],
+    tech: ["Apache Kafka", "Scikit-learn", "Tableau", "Python", "PostgreSQL", "REST APIs", "AWS"],
+    testimonial: { quote: "We went from reactive to proactive. The system paid for itself in the first quarter by preventing a supplier collapse we didn't see coming.", author: "VP Supply Chain", company: "Malaysian Manufacturer, Shah Alam" }
+  },
+  {
+    id: 7,
+    category: "chatbot",
+    categoryLabel: "Chatbot & NLP",
+    tagClass: "tag-blue",
+    title: "Medical Triage Assistant",
+    subtitle: "Private Clinic Network — Klang Valley",
+    year: "2024",
+    img: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=1400&q=80",
+    summary: "Deployed a multilingual (BM/EN) AI patient intake and triage assistant across a 15-clinic network, reducing front-desk load by 70% while improving patient experience scores.",
+    challenge: "Long waiting times and high front-desk staff turnover were impacting patient satisfaction. Triage was inconsistent across clinics, and non-urgent cases were consuming emergency appointment slots.",
+    solution: "We built a conversational AI that guides patients through symptom assessment, collects intake information, and recommends the appropriate urgency level and specialist — fully bilingual. Integrated with the clinic management system to pre-populate patient records before the doctor encounter.",
+    results: [
+      { label: "Front-Desk Workload Reduction", value: "70%", bar: 70 },
+      { label: "Patient Rating (avg)", value: "4.8 / 5★", bar: 96 },
+      { label: "Avg Intake Time", value: "−65%", bar: 65 },
+      { label: "Triage Consistency Score", value: "94%", bar: 94 }
+    ],
+    timeline: [
+      { phase: "Clinical Protocol Mapping", duration: "2 weeks" },
+      { phase: "Multilingual NLP Build", duration: "4 weeks" },
+      { phase: "CMS Integration", duration: "2 weeks" },
+      { phase: "Clinical Pilot & Refinement", duration: "4 weeks" }
+    ],
+    tech: ["Claude 3", "Bahasa Malaysia NLP", "HL7 FHIR", "React", "Node.js", "Clinic Management API"],
+    testimonial: { quote: "Patients love it. Staff love it. Our doctors see better-prepared patients. It's a win across the board.", author: "Medical Director", company: "Private Clinic Network, KV" }
+  },
+  {
+    id: 8,
+    category: "integration",
+    categoryLabel: "Enterprise Integration",
+    tagClass: "tag-purple",
+    title: "ERP AI Co-Pilot",
+    subtitle: "Manufacturing Group — Johor Bahru",
+    year: "2025",
+    img: "https://images.unsplash.com/photo-1518186285589-2f7649de83e0?auto=format&fit=crop&w=1400&q=80",
+    summary: "Wrapped a natural language AI co-pilot around a legacy SAP ERP system — allowing non-technical users to generate reports, trigger workflows, and surface insights through plain conversation.",
+    challenge: "Only 20% of the 600-person company actively used the SAP system due to complexity. Critical business data was inaccessible to mid-level managers who couldn't navigate the interface or wait for IT reports.",
+    solution: "Using LangChain and Claude, we built an AI layer that translates natural language queries into SAP BAPI calls and SQL queries. The co-pilot returns formatted responses with charts, tables, and actionable recommendations — accessible via web interface and Teams.",
+    results: [
+      { label: "ERP Active User Adoption", value: "+280%", bar: 78 },
+      { label: "Report Generation Time", value: "−95%", bar: 95 },
+      { label: "Time Saved per Manager/Week", value: "8 hrs", bar: 80 },
+      { label: "IT Support Tickets (ERP)", value: "−60%", bar: 60 }
+    ],
+    timeline: [
+      { phase: "SAP API Mapping", duration: "3 weeks" },
+      { phase: "LangChain Agent Development", duration: "4 weeks" },
+      { phase: "Teams / Web UI Build", duration: "3 weeks" },
+      { phase: "Pilot with 50 Users", duration: "2 weeks" }
+    ],
+    tech: ["Claude 3.5", "LangChain", "SAP BAPI", "Python", "Microsoft Teams API", "Chart.js", "Azure"],
+    testimonial: { quote: "My managers can now get a full sales breakdown for any region in 10 seconds. That used to take IT two days.", author: "Group CEO", company: "Manufacturing Group, Johor Bahru" }
+  }
+];
+
+/* ---- Filter ---- */
+const filterBtns = document.querySelectorAll('.filter-btn');
+const cards = document.querySelectorAll('.project-card');
+const emptyState = document.getElementById('empty-state');
+
+filterBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    filterBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const filter = btn.dataset.filter;
+    let visible = 0;
+    cards.forEach(card => {
+      const match = filter === 'all' || card.dataset.category === filter;
+      card.style.display = match ? '' : 'none';
+      if (match) visible++;
+    });
+    emptyState.classList.toggle('hidden', visible > 0);
+  });
+});
+
+/* ---- Modal ---- */
+const modal = document.getElementById('project-modal');
+const modalContent = document.getElementById('modal-content');
+const modalClose = document.getElementById('modal-close');
+const modalBackdrop = document.getElementById('modal-backdrop');
+const modalPanel = document.getElementById('modal-panel');
+
+function openModal(id) {
+  const p = PROJECTS[id];
+  modalContent.innerHTML = buildModal(p);
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  modalPanel.scrollTop = 0;
+  // Animate bars after render
+  setTimeout(() => {
+    p.results.forEach((r, i) => {
+      const bar = document.getElementById('bar-' + i);
+      if (bar) bar.style.width = r.bar + '%';
+    });
+  }, 200);
+}
+
+function closeModal() {
+  modal.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+modalClose.addEventListener('click', closeModal);
+modalBackdrop.addEventListener('click', closeModal);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+cards.forEach(card => {
+  card.addEventListener('click', () => openModal(parseInt(card.dataset.id)));
+});
+
+function buildModal(p) {
+  const resultsHTML = p.results.map((r, i) => `
+    <div>
+      <div class="flex justify-between mb-2">
+        <span class="text-sm text-neutral-400">${r.label}</span>
+        <span class="text-sm font-bold text-yellow-300">${r.value}</span>
+      </div>
+      <div class="result-bar-bg"><div class="result-bar" id="bar-${i}" style="width: 0%"></div></div>
+    </div>
+  `).join('');
+
+  const timelineHTML = p.timeline.map((t, i) => `
+    <div class="flex gap-4">
+      <div class="flex flex-col items-center">
+        <div class="tl-dot"></div>
+        ${i < p.timeline.length - 1 ? '<div class="w-0.5 flex-1 bg-white/10 mt-1"></div>' : ''}
+      </div>
+      <div class="pb-5">
+        <p class="font-semibold text-white text-sm">${t.phase}</p>
+        <p class="text-xs text-neutral-500 mt-0.5">${t.duration}</p>
+      </div>
+    </div>
+  `).join('');
+
+  const techHTML = p.tech.map(t => `<span class="tech-badge">${t}</span>`).join('');
+
+  return `
+    <!-- Hero Image -->
+    <div class="relative h-64 md:h-80 rounded-t-[2rem] overflow-hidden">
+      <img src="${p.img}" class="w-full h-full object-cover" alt="${p.title}">
+      <div class="absolute inset-0 bg-gradient-to-t from-[#0d1f3c] via-[#0d1f3c]/30 to-transparent"></div>
+      <div class="absolute bottom-0 left-0 right-0 p-8">
+        <span class="tag ${p.tagClass} mb-3 inline-block">${p.categoryLabel}</span>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-white leading-tight">${p.title}</h2>
+        <p class="text-neutral-400 mt-1">${p.subtitle} · ${p.year}</p>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="p-8 md:p-10 grid lg:grid-cols-3 gap-10">
+
+      <!-- Left col: story -->
+      <div class="lg:col-span-2 space-y-8">
+
+        <!-- Summary -->
+        <div>
+          <p class="text-lg leading-relaxed text-neutral-200">${p.summary}</p>
+        </div>
+
+        <!-- Challenge -->
+        <div>
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-sm">⚠️</div>
+            <h4 class="text-lg font-bold text-white">The Challenge</h4>
+          </div>
+          <p class="text-neutral-400 leading-relaxed pl-11">${p.challenge}</p>
+        </div>
+
+        <!-- Solution -->
+        <div>
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-sm">💡</div>
+            <h4 class="text-lg font-bold text-white">Our Solution</h4>
+          </div>
+          <p class="text-neutral-400 leading-relaxed pl-11">${p.solution}</p>
+        </div>
+
+        <!-- Results bars -->
+        <div>
+          <div class="flex items-center gap-3 mb-5">
+            <div class="w-8 h-8 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center justify-center text-sm">📈</div>
+            <h4 class="text-lg font-bold text-white">Measurable Results</h4>
+          </div>
+          <div class="pl-11 space-y-4">${resultsHTML}</div>
+        </div>
+
+        <!-- Testimonial -->
+        <div class="glass rounded-2xl p-6 border-l-4 border-yellow-400/60">
+          <p class="text-neutral-200 italic mb-4">"${p.testimonial.quote}"</p>
+          <p class="font-semibold text-white text-sm">${p.testimonial.author}</p>
+          <p class="text-neutral-500 text-xs">${p.testimonial.company}</p>
+        </div>
+      </div>
+
+      <!-- Right col: sidebar -->
+      <div class="space-y-6">
+
+        <!-- Tech stack -->
+        <div class="glass rounded-2xl p-6">
+          <h5 class="font-bold text-white mb-4 text-sm uppercase tracking-wider">Tech Stack</h5>
+          <div class="flex flex-wrap gap-2">${techHTML}</div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="glass rounded-2xl p-6">
+          <h5 class="font-bold text-white mb-4 text-sm uppercase tracking-wider">Project Timeline</h5>
+          <div>${timelineHTML}</div>
+        </div>
+
+        <!-- CTA -->
+        <a href="claude_malaysia_community_dashboard.html#contact" class="block w-full py-4 rounded-2xl bg-gradient-to-r from-yellow-400 to-amber-400 text-black font-bold text-center hover:opacity-90 transition-opacity" onclick="closeModal()">
+          Build Something Similar →
+        </a>
+      </div>
+
+    </div>
+  `;
+}
+</script>
+
+</body>
+</html>
