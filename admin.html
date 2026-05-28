@@ -696,8 +696,14 @@ async function upsertProject(p) {
   await refreshProjects();
 }
 async function deleteProjectDb(id) {
-  const { error } = await sb.from('projects').delete().eq('id', id);
-  if (error) { showAdminToast('❌ Delete failed: ' + error.message, true); throw error; }
+  console.log('Deleting project id:', id);
+  const { data, error } = await sb.from('projects').delete().eq('id', id).select();
+  console.log('Delete result:', { data, error });
+  if (error) { showToast('Delete failed: ' + error.message, true); throw error; }
+  if (!data || data.length === 0) {
+    showToast('Nothing deleted — RLS policy may be blocking. Check Supabase policies.', true);
+    throw new Error('No rows deleted');
+  }
   await refreshProjects();
 }
 // Legacy stub — no longer used directly but kept to avoid breaking references
@@ -1143,13 +1149,13 @@ function editProject(id) {
   showSection('new');
 }
 
-function togglePublish(id) {
+async function togglePublish(id) {
   const projects = getProjects();
-  const idx = projects.findIndex(p => p.id === id);
-  if (idx === -1) return;
-  const wasPublished = projects[idx].status === 'published';
-  projects[idx].status = wasPublished ? 'draft' : 'published';
-  saveProjects(projects);
+  const p = projects.find(x => String(x.id) === String(id));
+  if (!p) return;
+  const wasPublished = p.status === 'published';
+  p.status = wasPublished ? 'draft' : 'published';
+  try { await upsertProject(p); } catch(e) { return; }
   showToast(wasPublished ? 'Project unpublished' : '🚀 Project is now live!');
   renderProjectsTable();
   renderDashboard();
@@ -1166,11 +1172,17 @@ function closeConfirm() {
 }
 document.getElementById('confirm-ok').addEventListener('click', async () => {
   if (!pendingDeleteId) return;
-  try { await deleteProjectDb(pendingDeleteId); } catch(e) { return; }
-  closeConfirm();
-  showAdminToast('🗑 Project deleted');
-  renderProjectsTable();
-  renderDashboard();
+  const id = pendingDeleteId;
+  closeConfirm(); // close modal immediately so user gets feedback
+  try {
+    await deleteProjectDb(id);
+    showToast('🗑 Project deleted');
+    renderProjectsTable();
+    renderDashboard();
+  } catch(e) {
+    console.error('Delete error:', e);
+    // error toast was already shown by deleteProjectDb
+  }
 });
 document.getElementById('confirm-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('confirm-modal')) closeConfirm();
@@ -1185,6 +1197,12 @@ function confirmClearAll() {
 }
 
 // ===================== TOAST =====================
+// Alias so callers using either name work
+const showAdminToast = (msg, error = false) => showToast(msg, error);
+// Simple confirm dialog using the existing confirm-modal
+function showConfirm(title, message, onConfirm) {
+  if (window.confirm((title ? title + '\n\n' : '') + (message || ''))) onConfirm();
+}
 function showToast(msg, error = false) {
   const t = document.getElementById('admin-toast');
   t.textContent = (error ? '❌ ' : '✅ ') + msg;
