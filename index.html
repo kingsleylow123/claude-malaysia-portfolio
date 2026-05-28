@@ -591,13 +591,13 @@ function loadProjects() {
   try {
     var raw = localStorage.getItem("aim_projects");
     var all = raw ? JSON.parse(raw) : [];
-    // Migrate old projects that used 'img' instead of 'image'
-    var migrated = false;
+    // Normalise: accept both 'img' and 'image' field names
     all = all.map(function(p) {
-      if (p.img && !p.image) { p.image = p.img; delete p.img; migrated = true; }
+      if (!p.image && p.img) p.image = p.img;
       return p;
     });
-    if (migrated) localStorage.setItem("aim_projects", JSON.stringify(all));
+    // Try to persist normalised data — silently ignore if storage full
+    try { localStorage.setItem("aim_projects", JSON.stringify(all)); } catch(e2) {}
     ALL_PROJECTS = all.filter(function(p){ return p.status === "published"; });
   } catch(e) { ALL_PROJECTS = []; }
 }
@@ -645,6 +645,7 @@ function renderProjectsGrid(filter) {
 }
 
 function buildProjectCard(p, featured) {
+  if (!p.image && p.img) p.image = p.img; // normalise field name
   var cat   = CATEGORY_MAP[p.category] || { label: p.category, tagClass: "tag-yellow" };
   var imgH  = featured ? "h-72" : "h-48";
   var pad   = featured ? "p-7"  : "p-6";
@@ -671,7 +672,15 @@ function buildProjectCard(p, featured) {
 function openModalById(id) {
   // Always read fresh from localStorage so teamIds/edits from admin are reflected immediately
   var freshProjects = ALL_PROJECTS;
-  try { var raw = localStorage.getItem('aim_projects'); if (raw) freshProjects = JSON.parse(raw); } catch(e) {}
+  try {
+    var raw = localStorage.getItem('aim_projects');
+    if (raw) {
+      freshProjects = JSON.parse(raw).map(function(p) {
+        if (!p.image && p.img) p.image = p.img;
+        return p;
+      });
+    }
+  } catch(e) {}
   var p = freshProjects.find(function(x){ return String(x.id) === String(id); });
   if (!p) return;
   var mc = document.getElementById("modal-content");
