@@ -637,7 +637,16 @@ function getProjects() {
   return JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
 }
 function saveProjects(arr) {
-  localStorage.setItem(PROJECTS_KEY, JSON.stringify(arr));
+  try {
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(arr));
+  } catch(e) {
+    if (e.name === 'QuotaExceededError' || e.code === 22) {
+      showAdminToast('❌ Storage full! Image is too large — please use a smaller image or an external URL (e.g. Imgur, Cloudinary).', true);
+    } else {
+      showAdminToast('❌ Failed to save: ' + e.message, true);
+    }
+    throw e; // prevent false success toast
+  }
 }
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2,5);
@@ -845,28 +854,45 @@ function previewImage() {
   updateImagePreview(url);
 }
 
+function compressAndStoreImage(file) {
+  if (!file || !file.type.startsWith('image/')) { showAdminToast('Please select an image file', true); return; }
+  if (file.size > 10 * 1024 * 1024) { showAdminToast('Image must be under 10MB', true); return; }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      // Resize to max 1280px wide, maintaining aspect ratio
+      const MAX_W = 1280, MAX_H = 800;
+      let w = img.width, h = img.height;
+      if (w > MAX_W) { h = Math.round(h * MAX_W / w); w = MAX_W; }
+      if (h > MAX_H) { w = Math.round(w * MAX_H / h); h = MAX_H; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      // Compress to JPEG at 82% quality (keeps it well under 300KB)
+      const compressed = canvas.toDataURL('image/jpeg', 0.82);
+      const kb = Math.round(compressed.length * 0.75 / 1024);
+      document.getElementById('f-img-url').value = compressed;
+      updateImagePreview(compressed);
+      showAdminToast('✅ Image compressed to ~' + kb + 'KB (' + w + '×' + h + ')');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function handleFileSelect(event) {
   const file = event.target.files[0];
   if (!file) return;
-  if (file.size > 5 * 1024 * 1024) { showToast('Image must be under 5MB', true); return; }
-  const reader = new FileReader();
-  reader.onload = e => {
-    document.getElementById('f-img-url').value = e.target.result;
-    updateImagePreview(e.target.result);
-  };
-  reader.readAsDataURL(file);
+  compressAndStoreImage(file);
 }
 
 function handleFileDrop(event) {
   event.preventDefault();
   document.getElementById('upload-area').classList.remove('drag-over');
   const file = event.dataTransfer.files[0];
-  if (!file || !file.type.startsWith('image/')) { showToast('Please drop an image file', true); return; }
-  const input = document.getElementById('f-img-file');
-  const dt = new DataTransfer();
-  dt.items.add(file);
-  input.files = dt.files;
-  handleFileSelect({ target: input });
+  compressAndStoreImage(file);
 }
 
 function updateImagePreview(src) {
@@ -919,7 +945,7 @@ function saveProject(status) {
   try { teamIds = JSON.parse(document.getElementById('proj-team-ids').value || '[]'); } catch(e) {}
 
   const projectData = {
-    category, year, subtitle, img, summary, challenge, solution,
+    category, year, subtitle, image: img, summary, challenge, solution,
     title, status, tech: [...techTags], results, timeline,
     categoryLabel: cat.label, tagClass: cat.tagClass,
     testimonial: quote ? { quote, author, company } : null,
@@ -931,15 +957,20 @@ function saveProject(status) {
     if (idx !== -1) {
       projects[idx] = { ...projects[idx], ...projectData };
     }
-    showToast(status === 'published' ? '🚀 Project updated and published!' : '💾 Draft saved!');
   } else {
     projectData.id = genId();
     projectData.createdAt = new Date().toISOString();
     projects.push(projectData);
-    showToast(status === 'published' ? '🚀 Project published to the live site!' : '💾 Saved as draft!');
   }
 
-  saveProjects(projects);
+  try {
+    saveProjects(projects);
+  } catch(e) {
+    return; // saveProjects already showed error toast
+  }
+  showAdminToast(editId
+    ? (status === 'published' ? '🚀 Project updated and published!' : '💾 Draft saved!')
+    : (status === 'published' ? '🚀 Project published to the live site!' : '💾 Saved as draft!'));
   resetForm();
   showSection('projects');
 }
@@ -977,14 +1008,14 @@ function editProject(id) {
   document.getElementById('f-category').value = p.category || '';
   document.getElementById('f-year').value = p.year || '';
   document.getElementById('f-subtitle').value = p.subtitle || '';
-  document.getElementById('f-img-url').value = p.img || '';
+  document.getElementById('f-img-url').value = p.image || '';
   document.getElementById('f-summary').value = p.summary || '';
   document.getElementById('f-challenge').value = p.challenge || '';
   document.getElementById('f-solution').value = p.solution || '';
   document.getElementById('f-quote').value = p.testimonial?.quote || '';
   document.getElementById('f-author').value = p.testimonial?.author || '';
   document.getElementById('f-company').value = p.testimonial?.company || '';
-  updateImagePreview(p.img || '');
+  updateImagePreview(p.image || '');
 
   // Results
   resultRowCount = 0;
