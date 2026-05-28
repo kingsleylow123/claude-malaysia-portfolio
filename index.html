@@ -931,4 +931,13 @@ function openTeamProfile(id) {
 }
 
 function closeTeamProfile() {
-  document.getElem
+  document.getElementById('team-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// Wire up team modal close
+document.getElementById('team-modal-close').addEventListener('click', closeTeamProfile);
+document.getElementById('team-modal-backdrop').addEventListener('click', closeTeamProfile);
+</script>
+</body>
+</html>
