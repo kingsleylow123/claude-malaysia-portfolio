@@ -590,7 +590,15 @@ var CATEGORY_MAP = {
 function loadProjects() {
   try {
     var raw = localStorage.getItem("aim_projects");
-    ALL_PROJECTS = raw ? JSON.parse(raw).filter(function(p){ return p.status === "published"; }) : [];
+    var all = raw ? JSON.parse(raw) : [];
+    // Migrate old projects that used 'img' instead of 'image'
+    var migrated = false;
+    all = all.map(function(p) {
+      if (p.img && !p.image) { p.image = p.img; delete p.img; migrated = true; }
+      return p;
+    });
+    if (migrated) localStorage.setItem("aim_projects", JSON.stringify(all));
+    ALL_PROJECTS = all.filter(function(p){ return p.status === "published"; });
   } catch(e) { ALL_PROJECTS = []; }
 }
 
