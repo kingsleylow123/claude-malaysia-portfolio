@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Portal | AI Malaysia Community</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
@@ -496,7 +497,10 @@
       </div>
       <div>
         <label class="block text-sm font-semibold text-neutral-300 mb-1">Photo URL</label>
-        <input type="url" id="tm-photo" class="form-input" placeholder="https://... (leave blank for initials avatar)" />
+        <input type="url" id="tm-photo" class="form-input mb-2" placeholder="https://... or upload below" />
+        <input type="file" id="tm-photo-file" accept="image/*" style="display:none" onchange="handleTeamPhotoUpload(event)" />
+        <button type="button" onclick="document.getElementById('tm-photo-file').click()" class="btn-ghost text-xs px-3 py-2">📷 Upload Photo</button>
+        <span id="tm-photo-status" class="text-xs text-neutral-500 ml-2"></span>
       </div>
       <div>
         <label class="block text-sm font-semibold text-neutral-300 mb-1">Short Bio</label>
@@ -579,10 +583,62 @@
 <div id="admin-toast">✅ Saved successfully!</div>
 
 <script>
+// ===================== SUPABASE =====================
+const SUPABASE_URL = 'https://zgzduvbbryggrunglhdy.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_vpoMGW1OFvoO5QbOSSrTcw_UW_-0Mi4';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const IMAGES_BUCKET = 'images';
+
+// In-memory caches (synced from DB)
+let CACHED_PROJECTS = [];
+let CACHED_TEAM = [];
+let CACHED_LEADS = [];
+
+// Field name map: JS uses camelCase, DB uses snake_case
+function dbToJsProject(r) {
+  if (!r) return r;
+  return {
+    id: r.id, title: r.title, category: r.category, year: r.year,
+    subtitle: r.subtitle, image: r.image, summary: r.summary,
+    challenge: r.challenge, solution: r.solution,
+    tech: r.tech || [], results: r.results || [], timeline: r.timeline || [],
+    testimonial: r.testimonial, teamIds: r.team_ids || [],
+    status: r.status, categoryLabel: r.category_label, tagClass: r.tag_class,
+    createdAt: r.created_at
+  };
+}
+function jsToDbProject(p) {
+  return {
+    id: p.id, title: p.title, category: p.category, year: p.year,
+    subtitle: p.subtitle, image: p.image, summary: p.summary,
+    challenge: p.challenge, solution: p.solution,
+    tech: p.tech || [], results: p.results || [], timeline: p.timeline || [],
+    testimonial: p.testimonial || null, team_ids: p.teamIds || [],
+    status: p.status, category_label: p.categoryLabel, tag_class: p.tagClass
+  };
+}
+
+async function refreshProjects() {
+  const { data, error } = await sb.from('projects').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('refreshProjects', error); return; }
+  CACHED_PROJECTS = (data || []).map(dbToJsProject);
+}
+async function refreshTeam() {
+  const { data, error } = await sb.from('team_members').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('refreshTeam', error); return; }
+  CACHED_TEAM = data || [];
+}
+async function refreshLeads() {
+  const { data, error } = await sb.from('audit_leads').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('refreshLeads', error); return; }
+  // Normalise: add submittedAt alias + default status
+  CACHED_LEADS = (data || []).map(l => ({ ...l, submittedAt: l.created_at, status: l.status || 'new' }));
+}
+
 // ===================== AUTH =====================
 const ADMIN_PASSWORD_KEY = 'aim_admin_pw';
 const SESSION_KEY = 'aim_admin_session';
-const PROJECTS_KEY = 'aim_projects';
+const PROJECTS_KEY = 'aim_projects'; // legacy
 
 function getAdminPassword() {
   return localStorage.getItem(ADMIN_PASSWORD_KEY) || 'admin123';
@@ -632,22 +688,20 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// ===================== DATA =====================
-function getProjects() {
-  return JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+// ===================== DATA (Supabase-backed) =====================
+function getProjects() { return CACHED_PROJECTS; }
+async function upsertProject(p) {
+  const { error } = await sb.from('projects').upsert(jsToDbProject(p));
+  if (error) { showAdminToast('❌ Save failed: ' + error.message, true); throw error; }
+  await refreshProjects();
 }
-function saveProjects(arr) {
-  try {
-    localStorage.setItem(PROJECTS_KEY, JSON.stringify(arr));
-  } catch(e) {
-    if (e.name === 'QuotaExceededError' || e.code === 22) {
-      showAdminToast('❌ Storage full! Image is too large — please use a smaller image or an external URL (e.g. Imgur, Cloudinary).', true);
-    } else {
-      showAdminToast('❌ Failed to save: ' + e.message, true);
-    }
-    throw e; // prevent false success toast
-  }
+async function deleteProjectDb(id) {
+  const { error } = await sb.from('projects').delete().eq('id', id);
+  if (error) { showAdminToast('❌ Delete failed: ' + error.message, true); throw error; }
+  await refreshProjects();
 }
+// Legacy stub — no longer used directly but kept to avoid breaking references
+function saveProjects(arr) { CACHED_PROJECTS = arr; }
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2,5);
 }
@@ -661,10 +715,20 @@ const CATEGORY_MAP = {
 };
 
 // ===================== APP INIT =====================
-function initApp() {
+async function initApp() {
+  // Load everything from Supabase first, then render
+  await Promise.all([refreshProjects(), refreshTeam(), refreshLeads()]);
   renderDashboard();
   initFormRows();
   updateLeadsBadge();
+  // If currently on a section that depends on data, re-render
+  const active = document.querySelector('.section.active');
+  if (active) {
+    const id = active.id.replace('section-','');
+    if (id === 'projects') renderProjectsTable();
+    if (id === 'team') renderTeam();
+    if (id === 'leads') renderLeads();
+  }
 }
 
 // ===================== NAVIGATION =====================
@@ -854,45 +918,76 @@ function previewImage() {
   updateImagePreview(url);
 }
 
-function compressAndStoreImage(file) {
-  if (!file || !file.type.startsWith('image/')) { showAdminToast('Please select an image file', true); return; }
-  if (file.size > 10 * 1024 * 1024) { showAdminToast('Image must be under 10MB', true); return; }
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const img = new Image();
-    img.onload = function() {
-      // Resize to max 1280px wide, maintaining aspect ratio
-      const MAX_W = 1280, MAX_H = 800;
-      let w = img.width, h = img.height;
-      if (w > MAX_W) { h = Math.round(h * MAX_W / w); w = MAX_W; }
-      if (h > MAX_H) { w = Math.round(w * MAX_H / h); h = MAX_H; }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, w, h);
-      // Compress to JPEG at 82% quality (keeps it well under 300KB)
-      const compressed = canvas.toDataURL('image/jpeg', 0.82);
-      const kb = Math.round(compressed.length * 0.75 / 1024);
-      document.getElementById('f-img-url').value = compressed;
-      updateImagePreview(compressed);
-      showAdminToast('✅ Image compressed to ~' + kb + 'KB (' + w + '×' + h + ')');
+// Resize/compress in-browser, then upload to Supabase Storage and return the public URL
+async function compressAndUploadImage(file, folder) {
+  folder = folder || 'projects';
+  if (!file || !file.type.startsWith('image/')) { showAdminToast('Please select an image file', true); return null; }
+  if (file.size > 10 * 1024 * 1024) { showAdminToast('Image must be under 10MB', true); return null; }
+  // Resize via canvas
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_W = 1600, MAX_H = 1000;
+        let w = img.width, h = img.height;
+        if (w > MAX_W) { h = Math.round(h * MAX_W / w); w = MAX_W; }
+        if (h > MAX_H) { w = Math.round(w * MAX_H / h); h = MAX_H; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
     };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  // Convert dataURL → Blob
+  const blob = await (await fetch(dataUrl)).blob();
+  const filename = folder + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+  const { error } = await sb.storage.from(IMAGES_BUCKET).upload(filename, blob, { contentType: 'image/jpeg', upsert: false });
+  if (error) { showAdminToast('❌ Upload failed: ' + error.message, true); return null; }
+  const { data: urlData } = sb.storage.from(IMAGES_BUCKET).getPublicUrl(filename);
+  return urlData.publicUrl;
+}
+
+async function handleProjectImageUpload(file) {
+  if (!file) return;
+  showAdminToast('⬆️ Uploading image...');
+  const url = await compressAndUploadImage(file, 'projects');
+  if (url) {
+    document.getElementById('f-img-url').value = url;
+    updateImagePreview(url);
+    showAdminToast('✅ Image uploaded');
+  }
+}
+
+async function handleTeamPhotoUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const status = document.getElementById('tm-photo-status');
+  if (status) status.textContent = 'Uploading...';
+  const url = await compressAndUploadImage(file, 'team');
+  if (url) {
+    document.getElementById('tm-photo').value = url;
+    if (status) status.textContent = '✅ Uploaded';
+    showAdminToast('✅ Photo uploaded');
+  } else if (status) status.textContent = '';
 }
 
 function handleFileSelect(event) {
   const file = event.target.files[0];
   if (!file) return;
-  compressAndStoreImage(file);
+  handleProjectImageUpload(file);
 }
 
 function handleFileDrop(event) {
   event.preventDefault();
   document.getElementById('upload-area').classList.remove('drag-over');
   const file = event.dataTransfer.files[0];
-  compressAndStoreImage(file);
+  handleProjectImageUpload(file);
 }
 
 function updateImagePreview(src) {
@@ -902,7 +997,7 @@ function updateImagePreview(src) {
 }
 
 // ===================== SAVE PROJECT =====================
-function saveProject(status) {
+async function saveProject(status) {
   const title = document.getElementById('f-title').value.trim();
   const category = document.getElementById('f-category').value;
   const year = document.getElementById('f-year').value.trim();
@@ -952,21 +1047,18 @@ function saveProject(status) {
     teamIds,
   };
 
+  let finalProject;
   if (editId) {
-    const idx = projects.findIndex(p => p.id === editId);
-    if (idx !== -1) {
-      projects[idx] = { ...projects[idx], ...projectData };
-    }
+    const existing = projects.find(p => p.id === editId);
+    finalProject = { ...(existing || {}), id: editId, ...projectData };
   } else {
-    projectData.id = genId();
-    projectData.createdAt = new Date().toISOString();
-    projects.push(projectData);
+    finalProject = { ...projectData, id: genId(), createdAt: new Date().toISOString() };
   }
 
   try {
-    saveProjects(projects);
+    await upsertProject(finalProject);
   } catch(e) {
-    return; // saveProjects already showed error toast
+    return; // upsertProject already showed error toast
   }
   showAdminToast(editId
     ? (status === 'published' ? '🚀 Project updated and published!' : '💾 Draft saved!')
@@ -1072,12 +1164,11 @@ function closeConfirm() {
   document.getElementById('confirm-modal').classList.remove('open');
   pendingDeleteId = null;
 }
-document.getElementById('confirm-ok').addEventListener('click', () => {
+document.getElementById('confirm-ok').addEventListener('click', async () => {
   if (!pendingDeleteId) return;
-  const projects = getProjects().filter(p => p.id !== pendingDeleteId);
-  saveProjects(projects);
+  try { await deleteProjectDb(pendingDeleteId); } catch(e) { return; }
   closeConfirm();
-  showToast('Project deleted');
+  showAdminToast('🗑 Project deleted');
   renderProjectsTable();
   renderDashboard();
 });
@@ -1107,14 +1198,20 @@ function showToast(msg, error = false) {
   setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(-10px)'; }, 3500);
 }
 
-// ===================== LEADS =====================
-const LEADS_KEY = 'aim_audit_leads';
+// ===================== LEADS (Supabase-backed) =====================
+const LEADS_KEY = 'aim_audit_leads'; // legacy
 
-function getLeads() {
-  try { return JSON.parse(localStorage.getItem(LEADS_KEY) || '[]'); } catch(e) { return []; }
+function getLeads() { return CACHED_LEADS; }
+function saveLeads(leads) { CACHED_LEADS = leads; } // legacy stub
+async function deleteLeadDb(id) {
+  const { error } = await sb.from('audit_leads').delete().eq('id', id);
+  if (error) { showAdminToast('❌ Delete failed: ' + error.message, true); throw error; }
+  await refreshLeads();
 }
-function saveLeads(leads) {
-  localStorage.setItem(LEADS_KEY, JSON.stringify(leads));
+async function deleteAllLeadsDb() {
+  const { error } = await sb.from('audit_leads').delete().neq('id', 0);
+  if (error) { showAdminToast('❌ Delete failed: ' + error.message, true); throw error; }
+  await refreshLeads();
 }
 
 function updateLeadsBadge() {
@@ -1201,22 +1298,24 @@ function renderLeads() {
   updateLeadsBadge();
 }
 
-function updateLeadStatus(id, status) {
-  const leads = getLeads();
-  const lead = leads.find(l => String(l.id) === String(id));
-  if (lead) { lead.status = status; saveLeads(leads); updateLeadsBadge(); showAdminToast('Status updated'); }
+async function updateLeadStatus(id, status) {
+  const { error } = await sb.from('audit_leads').update({ status }).eq('id', id);
+  if (error) { showAdminToast('❌ Update failed: ' + error.message, true); return; }
+  await refreshLeads();
+  updateLeadsBadge();
+  showAdminToast('Status updated');
 }
 
-function deleteLead(id) {
+async function deleteLead(id) {
   if (!confirm('Remove this lead?')) return;
-  saveLeads(getLeads().filter(l => String(l.id) !== String(id)));
+  try { await deleteLeadDb(id); } catch(e) { return; }
   renderLeads();
   showAdminToast('Lead removed');
 }
 
-function clearAllLeads() {
+async function clearAllLeads() {
   if (!confirm('Clear ALL leads? This cannot be undone.')) return;
-  localStorage.removeItem(LEADS_KEY);
+  try { await deleteAllLeadsDb(); } catch(e) { return; }
   renderLeads();
   showAdminToast('All leads cleared');
 }
@@ -1233,13 +1332,21 @@ function exportLeadsCSV() {
   a.click();
 }
 
-// ===================== TEAM =====================
-const TEAM_KEY = 'aim_team';
+// ===================== TEAM (Supabase-backed) =====================
+const TEAM_KEY = 'aim_team'; // legacy
 
-function getTeam() {
-  try { return JSON.parse(localStorage.getItem(TEAM_KEY) || '[]'); } catch(e) { return []; }
+function getTeam() { return CACHED_TEAM; }
+function saveTeamData(t) { CACHED_TEAM = t; } // legacy stub
+async function upsertTeamMember(m) {
+  const { error } = await sb.from('team_members').upsert(m);
+  if (error) { showAdminToast('❌ Save failed: ' + error.message, true); throw error; }
+  await refreshTeam();
 }
-function saveTeamData(t) { localStorage.setItem(TEAM_KEY, JSON.stringify(t)); }
+async function deleteTeamMemberDb(id) {
+  const { error } = await sb.from('team_members').delete().eq('id', id);
+  if (error) { showAdminToast('❌ Delete failed: ' + error.message, true); throw error; }
+  await refreshTeam();
+}
 
 function renderTeam() {
   const team = getTeam();
@@ -1310,11 +1417,10 @@ function closeTeamModal() {
   document.getElementById('team-modal').style.display = 'none';
 }
 
-function saveTeamMember() {
+async function saveTeamMember() {
   const name = document.getElementById('tm-name').value.trim();
   const role = document.getElementById('tm-role').value.trim();
   if (!name || !role) { showAdminToast('Name and Role are required', true); return; }
-  const team = getTeam();
   const editId = document.getElementById('team-edit-id').value;
   const member = {
     id:        editId ? Number(editId) : Date.now(),
@@ -1332,25 +1438,21 @@ function saveTeamMember() {
     tiktok:    document.getElementById('tm-tiktok').value.trim(),
     expertise: document.getElementById('tm-expertise').value.trim()
   };
-  if (editId) {
-    const idx = team.findIndex(x => String(x.id) === String(editId));
-    if (idx > -1) team[idx] = member; else team.push(member);
-  } else {
-    team.push(member);
-  }
-  saveTeamData(team);
+  try { await upsertTeamMember(member); } catch(e) { return; }
   closeTeamModal();
   renderTeam();
   showAdminToast(editId ? '✅ Team member updated!' : '✅ Team member added!');
 }
 
 function deleteTeamMember(id) {
-  showConfirm('Delete Team Member?', 'This will remove them from all linked projects.', () => {
-    const team = getTeam().filter(x => String(x.id) !== String(id));
-    saveTeamData(team);
-    // Remove from all projects
-    const projs = getProjects().map(p => ({ ...p, teamIds: (p.teamIds||[]).filter(tid => String(tid) !== String(id)) }));
-    localStorage.setItem(PROJECTS_KEY, JSON.stringify(projs));
+  showConfirm('Delete Team Member?', 'This will remove them from all linked projects.', async () => {
+    try { await deleteTeamMemberDb(id); } catch(e) { return; }
+    // Also strip from each project's teamIds
+    const affected = getProjects().filter(p => (p.teamIds||[]).map(String).includes(String(id)));
+    for (const p of affected) {
+      p.teamIds = (p.teamIds||[]).filter(tid => String(tid) !== String(id));
+      try { await upsertProject(p); } catch(e) {}
+    }
     renderTeam();
     showAdminToast('🗑 Team member deleted');
   });
